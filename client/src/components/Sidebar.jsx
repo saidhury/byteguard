@@ -4,13 +4,13 @@ import { useAuth } from '../context/AuthContext';
 
 /** Navigation items shown in the sidebar */
 const navItems = [
-  { to: '/', icon: '🔐', label: 'Encryption Lab' },
-  { to: '/history', icon: '📋', label: 'File History' },
-  { to: '/shared', icon: '📤', label: 'Shared Files' },
-  { to: '/received', icon: '📥', label: 'Received Files' },
-  { to: '/groups', icon: '👥', label: 'Groups' },
-  { to: '/access', icon: '🔑', label: 'Access Control' },
-  { to: '/settings', icon: '⚙️', label: 'Settings' },
+  { to: '/', icon: 'fas fa-lock', label: 'Encryption Lab' },
+  { to: '/history', icon: 'fas fa-history', label: 'File History' },
+  { to: '/shared', icon: 'fas fa-share-square', label: 'Shared Files' },
+  { to: '/received', icon: 'fas fa-inbox', label: 'Received Files' },
+  { to: '/groups', icon: 'fas fa-users', label: 'Groups' },
+  { to: '/access', icon: 'fas fa-key', label: 'Access Control' },
+  { to: '/settings', icon: 'fas fa-cog', label: 'Settings' },
 ];
 
 /**
@@ -31,7 +31,7 @@ export default function Sidebar({ open, onClose }) {
       <div className="flex items-center justify-between px-4 py-4"
            style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🛡️</span>
+          <i className="fas fa-shield-alt text-2xl" style={{ color: 'var(--accent)' }}></i>
           <div>
             <span className="font-bold text-sm block" style={{ color: 'var(--text-primary)' }}>ByteGuard</span>
             <span className="text-[0.65rem] block" style={{ color: 'var(--text-muted)' }}>Post-Quantum Secure</span>
@@ -43,7 +43,7 @@ export default function Sidebar({ open, onClose }) {
           onClick={onClose}
           aria-label="Close menu"
         >
-          ✕
+          <i className="fas fa-times"></i>
         </button>
       </div>
 
@@ -64,7 +64,7 @@ export default function Sidebar({ open, onClose }) {
             })}
             onClick={onClose}
           >
-            <span className="text-base w-6 text-center">{item.icon}</span>
+            <i className={`${item.icon} text-base w-6 text-center`}></i>
             <span>{item.label}</span>
           </NavLink>
         ))}
@@ -86,7 +86,8 @@ export default function Sidebar({ open, onClose }) {
           }}
           onClick={logout}
         >
-          <span>🚪</span> Sign Out
+          <i className="fas fa-sign-out-alt"></i>
+          <span>Sign Out</span>
         </button>
       </div>
     </aside>

@@ -106,8 +106,13 @@ export default function ShareModal({ onClose, onShared }) {
 
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>📤 Share Encrypted File</h3>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-share-square"></i>
+            Share Encrypted File
+          </h3>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
         </div>
 
         <form onSubmit={submit} className="p-5 flex flex-col gap-4">
@@ -131,13 +136,15 @@ export default function ShareModal({ onClose, onShared }) {
                 <div>
                   <span className="text-sm font-medium" style={{ color: 'var(--accent-text)' }}>{selectedRecipient.researcherId}</span>
                   {selectedRecipient.hasKyberKey && (
-                    <span className="ml-2 text-xs" style={{ color: 'var(--success)' }}>🔑 Kyber key</span>
+                    <span className="ml-2 text-xs flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                      <i className="fas fa-key"></i> Kyber key
+                    </span>
                   )}
                 </div>
                 <button type="button" className="text-sm"
                         style={{ color: 'var(--text-muted)' }}
                         onClick={() => { setSelectedRecipient(null); setRecipientQuery(''); }}>
-                  ✕
+                  <i className="fas fa-times"></i>
                 </button>
               </div>
             ) : (
@@ -156,7 +163,7 @@ export default function ShareModal({ onClose, onShared }) {
                               style={{ color: 'var(--text-secondary)' }}
                               onClick={() => { setSelectedRecipient(u); setSearchResults([]); }}>
                         <span>{u.researcherId}</span>
-                        {u.hasKyberKey && <span className="text-xs" style={{ color: 'var(--success)' }}>🔑</span>}
+                        {u.hasKyberKey && <span className="text-xs" style={{ color: 'var(--success)' }}><i className="fas fa-key"></i></span>}
                       </button>
                     ))}
                   </div>
@@ -187,7 +194,12 @@ export default function ShareModal({ onClose, onShared }) {
             <button type="submit" className="px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-50"
                     style={{ background: 'var(--accent)' }}
                     disabled={sending}>
-              {sending ? 'Encrypting & Sharing…' : '🔐 Share with Kyber KEM'}
+              {sending ? 'Encrypting & Sharing…' : (
+                <>
+                  <i className="fas fa-lock mr-1"></i>
+                  Share with Kyber KEM
+                </>
+              )}
             </button>
           </div>
         </form>

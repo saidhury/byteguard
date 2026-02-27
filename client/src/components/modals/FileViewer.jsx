@@ -11,17 +11,6 @@ import { getKyberKeypair } from '../../crypto/keyStore';
 /**
  * FileViewer — inline viewer for decrypted files (PDF, images, text).
  *
- * Key design choices to avoid blank-screen / 304 issues:
- *   • PDFs are rendered in an <iframe> with a blob URL that has a unique
- *     cache-busting fragment (`#t=<timestamp>`), which prevents the browser
- *     from serving a stale 304 response.
- *   • The blob URL is created with the correct MIME type so the browser's
- *     built-in PDF renderer kicks in immediately.
- *   • A dedicated "Download" button creates a temporary <a> link and clicks
- *     it programmatically so downloads always work.
- *   • If the PDF still fails (e.g. unsupported browser) a clear error
- *     fallback message is shown with a download alternative.
- *
  * Props:
  *   fileId      — server-side file ID
  *   shareCode   — (optional) share code for shared files
@@ -78,12 +67,11 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
 
         if (cancelled) return;
 
-        /* Step 5 — create a blob URL with the correct MIME type
-         * Append a cache-busting fragment to prevent 304 responses */
+        /* Step 5 — create a blob URL with the correct MIME type */
         const mime = contentType || 'application/octet-stream';
         const blob = new Blob([plaintext], { type: mime });
         const url  = URL.createObjectURL(blob);
-        setBlobUrl(url + '#t=' + Date.now()); // cache-bust for PDF viewers
+        setBlobUrl(url + '#t=' + Date.now());
         setDecryptedBlob(blob);
         setLoading(false);
         setStatus('');
@@ -103,7 +91,7 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
   useEffect(() => {
     return () => {
       if (blobUrl) {
-        const raw = blobUrl.split('#')[0]; // strip cache-bust fragment
+        const raw = blobUrl.split('#')[0];
         URL.revokeObjectURL(raw);
       }
     };
@@ -130,14 +118,14 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col animate-fade-in"
+    <div className="fixed inset-0 z-[300] flex flex-col animate-fade-in"
          style={{ background: 'var(--overlay)' }}>
 
       {/* ── Header bar ──────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3"
            style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-lg">📄</span>
+          <i className="fas fa-file text-lg" style={{ color: 'var(--accent)' }}></i>
           <div className="min-w-0">
             <h3 className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
               {fileName || 'File Viewer'}
@@ -149,7 +137,6 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Dedicated Download button — always visible when we have data */}
           {decryptedBlob && (
             <button
               onClick={handleDownload}
@@ -160,12 +147,7 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
                 border: '1px solid var(--border)',
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              <i className="fas fa-download"></i>
               Download
             </button>
           )}
@@ -177,7 +159,8 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
               border: '1px solid var(--border)',
             }}
           >
-            ✕ Close
+            <i className="fas fa-times mr-1"></i>
+            Close
           </button>
         </div>
       </div>
@@ -194,17 +177,15 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
           </div>
         )}
 
-        {/* Error fallback with download alternative */}
+        {/* Error fallback */}
         {!loading && error && (
           <div className="flex flex-col items-center gap-4 text-center max-w-md">
             <div className="w-16 h-16 rounded-full flex items-center justify-center"
                  style={{ background: 'var(--error-soft)' }}>
-              <span className="text-2xl">⚠️</span>
+              <i className="fas fa-exclamation-triangle text-2xl" style={{ color: 'var(--error)' }}></i>
             </div>
             <div>
-              <h4 className="font-semibold mb-1" style={{ color: 'var(--error)' }}>
-                Failed to load file
-              </h4>
+              <h4 className="font-semibold mb-1" style={{ color: 'var(--error)' }}>Unable to View File</h4>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
             </div>
             <button
@@ -217,7 +198,7 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
           </div>
         )}
 
-        {/* PDF viewer — rendered in an iframe for maximum compatibility */}
+        {/* PDF viewer */}
         {!loading && !error && blobUrl && isPDF && (
           <iframe
             src={blobUrl}
@@ -245,7 +226,7 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
         {/* Unsupported file type — offer download */}
         {!loading && !error && blobUrl && !isPDF && !isImage && !isText && (
           <div className="flex flex-col items-center gap-4 text-center">
-            <span className="text-5xl">📄</span>
+            <i className="fas fa-file text-5xl" style={{ color: 'var(--text-muted)' }}></i>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               Preview not available for this file type
             </p>
@@ -254,12 +235,7 @@ export default function FileViewer({ fileId, shareCode, kemPayload, fileName, co
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition"
               style={{ background: 'var(--accent)', color: '#fff' }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              <i className="fas fa-download"></i>
               Download File
             </button>
           </div>
@@ -281,7 +257,7 @@ function TextViewer({ url }) {
     fetch(url)
       .then(r => r.text())
       .then(setText)
-      .catch(() => setText('⚠ Failed to load text content'));
+      .catch(() => setText('Failed to load text content'));
   }, [url]);
 
   return (

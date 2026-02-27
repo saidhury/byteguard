@@ -81,8 +81,11 @@ export default function ReceiveModal({ onClose, onReceived }) {
 
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>📥 Receive & Decrypt File</h3>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-inbox"></i>
+            Receive & Decrypt File
+          </h3>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}><i className="fas fa-times"></i></button>
         </div>
 
         <form onSubmit={submit} className="p-5 flex flex-col gap-4">
@@ -117,7 +120,12 @@ export default function ReceiveModal({ onClose, onReceived }) {
             <button type="submit" className="px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-50"
                     style={{ background: 'var(--accent)' }}
                     disabled={loading}>
-              {loading ? 'Decrypting…' : '🔓 Receive & Decrypt'}
+              {loading ? 'Decrypting…' : (
+                <>
+                  <i className="fas fa-unlock mr-1"></i>
+                  Receive & Decrypt
+                </>
+              )}
             </button>
           </div>
         </form>

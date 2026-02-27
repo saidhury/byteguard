@@ -55,7 +55,10 @@ export default function AccessControl() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>🔑 Access Control</h2>
+        <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-key"></i>
+          <span>Access Control</span>
+        </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Manage file permissions and access rights</p>
       </div>
 
@@ -118,14 +121,14 @@ export default function AccessControl() {
         <h3 className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Security Protocols</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
-            { label: 'Symmetric Cipher',  value: 'AES-256-GCM',               icon: '🔐' },
-            { label: 'Key Encapsulation', value: 'CRYSTALS-Kyber-512 (ML-KEM)', icon: '🔑' },
-            { label: 'Hash Function',     value: 'SHA-256 (WebCrypto)',         icon: '🧬' },
-            { label: 'Key Storage',       value: 'Browser IndexedDB (local)',   icon: '💾' },
+            { label: 'Symmetric Cipher',  value: 'AES-256-GCM',               icon: 'fas fa-lock' },
+            { label: 'Key Encapsulation', value: 'CRYSTALS-Kyber-512 (ML-KEM)', icon: 'fas fa-key' },
+            { label: 'Hash Function',     value: 'SHA-256 (WebCrypto)',         icon: 'fas fa-fingerprint' },
+            { label: 'Key Storage',       value: 'Browser IndexedDB (local)',   icon: 'fas fa-database' },
           ].map(p => (
             <div key={p.label} className="flex items-center gap-3 p-3 rounded-lg"
                  style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
-              <span className="text-xl">{p.icon}</span>
+              <i className={`${p.icon} text-xl`} style={{ color: 'var(--accent)' }}></i>
               <div>
                 <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>{p.label}</span>
                 <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{p.value}</span>

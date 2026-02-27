@@ -163,7 +163,10 @@ export default function Encryption() {
     <div>
       {/* ── Page header ─────────────────────────────── */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>🔐 Encryption Lab</h2>
+        <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-lock"></i>
+          <span>Encryption Lab</span>
+        </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Post-quantum secure file encryption with AES-256-GCM + CRYSTALS-Kyber-512
         </p>
@@ -186,7 +189,7 @@ export default function Encryption() {
           <input ref={fileInputRef} type="file" hidden onChange={e => onFilePick(e.target.files[0])} />
           {file ? (
             <div className="flex items-center gap-3 text-left">
-              <span className="text-3xl">📄</span>
+              <i className="fas fa-file text-3xl" style={{ color: 'var(--text-muted)' }}></i>
               <div className="flex-1 min-w-0">
                 <strong className="block truncate" style={{ color: 'var(--text-primary)' }}>{file.name}</strong>
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{fmtSize(file.size)}</span>
@@ -196,12 +199,12 @@ export default function Encryption() {
                 style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                 onClick={(e) => { e.stopPropagation(); reset(); }}
               >
-                ✕
+                <i className="fas fa-times"></i>
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <span className="text-4xl">📁</span>
+              <i className="fas fa-folder-open text-4xl" style={{ color: 'var(--text-muted)' }}></i>
               <p style={{ color: 'var(--text-secondary)' }}>Drop a file here or click to browse</p>
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Max 100 MB · Any file type</span>
             </div>
@@ -218,7 +221,12 @@ export default function Encryption() {
             onClick={encrypt}
             disabled={encrypting}
           >
-            {encrypting ? 'Encrypting…' : '🔐 Encrypt File'}
+            {encrypting ? 'Encrypting…' : (
+              <>
+                <i className="fas fa-lock mr-1"></i>
+                Encrypt File
+              </>
+            )}
           </button>
         </div>
       )}
@@ -242,7 +250,7 @@ export default function Encryption() {
                   background: phase === i ? 'var(--accent-soft)' : phase > i ? 'var(--success-soft)' : 'transparent',
                 }}
               >
-                {phase > i ? '✓' : i}
+                {phase > i ? <i className="fas fa-check text-[0.6rem]"></i> : i}
               </div>
               <span className="text-xs">{phaseLabels[i]}</span>
             </div>
@@ -254,7 +262,7 @@ export default function Encryption() {
       {result && (
         <div className="animate-fade-in">
           <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--success)' }}>✅ Encryption Complete</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: 'var(--success)' }}><i className="fas fa-check-circle"></i> Encryption Complete</h3>
             <button
               className="px-3 py-1.5 text-xs rounded-lg transition"
               style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
@@ -326,7 +334,7 @@ export default function Encryption() {
             style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--shadow)' }}
             onClick={download}
           >
-            ⬇️ Download Encrypted File
+            <i className="fas fa-download mr-2"></i> Download Encrypted File
           </button>
         </div>
       )}

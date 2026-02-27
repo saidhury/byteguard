@@ -114,9 +114,24 @@ def get_group(group_id):
     result['myRole'] = membership.role if membership else 'admin'
     result['members'] = [m.to_dict() for m in group.members.all()]
 
-    # Include shared files for this group
+    # Include shared files for this group, with per-user KEM extraction
     file_accesses = GroupFileAccess.query.filter_by(group_id=group_id).all()
-    result['sharedFiles'] = [fa.to_dict() for fa in file_accesses]
+    shared_files = []
+    for fa in file_accesses:
+        d = fa.to_dict()
+        # Extract this user's KEM ciphertext
+        try:
+            cts = json.loads(fa.kem_ciphertexts)
+            d['myKemCiphertext'] = cts.get(str(user_id), None)
+        except (json.JSONDecodeError, AttributeError):
+            d['myKemCiphertext'] = None
+        # Include file metadata for viewer
+        if fa.file:
+            d['contentType'] = fa.file.content_type
+            d['originalSize'] = fa.file.original_size
+            d['iv'] = fa.file.iv
+        shared_files.append(d)
+    result['sharedFiles'] = shared_files
 
     return jsonify(result)
 

@@ -43,8 +43,8 @@ export default function ReceivedFiles() {
   };
 
   const tabs = [
-    { key: 'individual', label: '📤 Direct Shares', count: items.length },
-    { key: 'group', label: '👥 Group Shares', count: groupFiles.length },
+    { key: 'individual', label: 'Direct Shares', icon: 'fas fa-share-square', count: items.length },
+    { key: 'group', label: 'Group Shares', icon: 'fas fa-users', count: groupFiles.length },
   ];
 
   return (
@@ -52,7 +52,10 @@ export default function ReceivedFiles() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-6">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>📥 Received Files</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-inbox"></i>
+            <span>Received Files</span>
+          </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Encrypted files shared with you</p>
         </div>
         <button
@@ -77,6 +80,7 @@ export default function ReceivedFiles() {
             }}
             onClick={() => setActiveTab(tab.key)}
           >
+            <i className={`${tab.icon} mr-1`}></i>
             {tab.label}
             <span className="ml-2 px-1.5 py-0.5 rounded-full text-[0.6rem]"
                   style={{ background: 'var(--surface-secondary)' }}>
@@ -94,16 +98,16 @@ export default function ReceivedFiles() {
       ) : activeTab === 'individual' ? (
         items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="text-5xl mb-4">📥</span>
+            <i className="fas fa-inbox text-5xl mb-4" style={{ color: 'var(--text-muted)' }}></i>
             <h3 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No received files</h3>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Enter a share code to decrypt files sent to you</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {items.map(item => (
-              <div key={item.id} className="surface-card rounded-xl p-4 transition">
+              <div key={item.id} className="surface-card transition">
                 <div className="flex items-start gap-3 mb-3">
-                  <span className="text-2xl">📄</span>
+                  <i className="fas fa-file text-2xl" style={{ color: 'var(--accent)' }}></i>
                   <div className="min-w-0 flex-1">
                     <strong className="text-sm block truncate" style={{ color: 'var(--text-primary)' }}>{item.fileName}</strong>
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>From: {item.senderName}</span>
@@ -124,7 +128,7 @@ export default function ReceivedFiles() {
                     style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid transparent' }}
                     onClick={() => handleView(item.fileId, item.kemCiphertext, item.fileName, item.contentType)}
                   >
-                    👁️ View
+                    <i className="fas fa-eye mr-1"></i> View
                   </button>
                 </div>
               </div>
@@ -134,24 +138,25 @@ export default function ReceivedFiles() {
       ) : (
         groupFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="text-5xl mb-4">👥</span>
+            <i className="fas fa-users text-5xl mb-4" style={{ color: 'var(--text-muted)' }}></i>
             <h3 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No group-shared files</h3>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Files shared with your groups will appear here</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {groupFiles.map(item => (
-              <div key={item.id} className="surface-card rounded-xl p-4 transition">
+              <div key={item.id} className="surface-card transition">
                 <div className="flex items-start gap-3 mb-3">
-                  <span className="text-2xl">📄</span>
+                  <i className="fas fa-file text-2xl" style={{ color: 'var(--accent)' }}></i>
                   <div className="min-w-0 flex-1">
                     <strong className="text-sm block truncate" style={{ color: 'var(--text-primary)' }}>{item.fileName}</strong>
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Group: {item.groupName}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: 'var(--accent2-soft)', color: 'var(--accent2)' }}>
-                    👥 Group
+                  <span className="px-2 py-0.5 rounded-full text-xs flex items-center gap-1" style={{ background: 'var(--accent2-soft)', color: 'var(--accent2)' }}>
+                    <i className="fas fa-users"></i>
+                    Group
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: 'var(--surface-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                     Kyber-512 KEM
@@ -165,7 +170,7 @@ export default function ReceivedFiles() {
                       style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid transparent' }}
                       onClick={() => handleView(item.fileId, item.myKemCiphertext, item.fileName, item.contentType)}
                     >
-                      👁️ View
+                      <i className="fas fa-eye mr-1"></i> View
                     </button>
                   ) : (
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No KEM key for you</span>

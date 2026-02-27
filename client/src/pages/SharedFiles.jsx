@@ -45,7 +45,10 @@ export default function SharedFiles() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-6">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>📤 Shared Files</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-share-square"></i>
+            <span>Shared Files</span>
+          </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Files you've shared with other researchers</p>
         </div>
         <button
@@ -53,7 +56,8 @@ export default function SharedFiles() {
           style={{ background: 'var(--accent)' }}
           onClick={() => setShowShareModal(true)}
         >
-          + Share File
+          <i className="fas fa-plus mr-1"></i>
+          Share File
         </button>
       </div>
 
@@ -64,16 +68,16 @@ export default function SharedFiles() {
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <span className="text-5xl mb-4">📤</span>
+          <i className="fas fa-share-square text-5xl mb-4" style={{ color: 'var(--text-muted)' }}></i>
           <h3 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No shared files</h3>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Share encrypted files using the button above</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {items.map(item => (
-            <div key={item.id} className="surface-card rounded-xl p-4 transition group">
+            <div key={item.id} className="surface-card transition group">
               <div className="flex items-start gap-3 mb-3">
-                <span className="text-2xl">📄</span>
+                <i className="fas fa-file text-2xl" style={{ color: 'var(--accent)' }}></i>
                 <div className="min-w-0 flex-1">
                   <strong className="text-sm block truncate" style={{ color: 'var(--text-primary)' }}>{item.fileName}</strong>
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>To: {item.recipientName || item.recipient}</span>
@@ -85,12 +89,13 @@ export default function SharedFiles() {
                   {item.permission || 'view'}
                 </span>
                 <button
-                  className="px-2 py-0.5 rounded-full text-xs transition cursor-pointer"
+                  className="px-2 py-0.5 rounded-full text-xs transition cursor-pointer flex items-center gap-1"
                   style={{ background: 'var(--success-soft)', color: 'var(--success)' }}
                   onClick={() => copyCode(item.shareCode)}
                   title="Click to copy"
                 >
-                  🔑 {item.shareCode}
+                  <i className="fas fa-key"></i>
+                  {item.shareCode}
                 </button>
               </div>
               <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
@@ -98,10 +103,11 @@ export default function SharedFiles() {
                   {new Date(item.createdAt || item.timestamp).toLocaleDateString()}
                 </span>
                 <button
-                  className="px-3 py-1 text-xs rounded-lg transition"
+                  className="px-3 py-1 text-xs rounded-lg transition flex items-center gap-1"
                   style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
                   onClick={() => revoke(item.id)}
                 >
+                  <i className="fas fa-times"></i>
                   Revoke
                 </button>
               </div>

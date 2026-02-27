@@ -29,7 +29,7 @@ export default function Layout({ children }) {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="relative z-10 flex-1 flex flex-col min-h-screen lg:ml-64">
+      <div className="relative flex-1 flex flex-col min-h-screen lg:ml-64">
         <TopBar
           user={user}
           onMenuToggle={() => setSidebarOpen(o => !o)}

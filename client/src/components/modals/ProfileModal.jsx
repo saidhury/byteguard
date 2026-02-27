@@ -18,7 +18,7 @@ export default function ProfileModal({ onClose }) {
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Researcher Profile</h3>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}><i className="fas fa-times"></i></button>
         </div>
 
         <div className="p-5 flex flex-col gap-4">
@@ -33,7 +33,6 @@ export default function ProfileModal({ onClose }) {
             {[
               ['Researcher ID',   user?.researcherId || '—'],
               ['Role',            user?.role || 'Researcher'],
-              ['Kyber-512 Key',   user?.hasKyberKey ? '✅ Registered' : '❌ Not set'],
               ['Account Created', user?.createdAt ? new Date(user.createdAt).toLocaleString() : '—'],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between items-center py-2 text-sm last:border-0"
@@ -42,6 +41,14 @@ export default function ProfileModal({ onClose }) {
                 <span style={{ color: 'var(--text-primary)' }}>{value}</span>
               </div>
             ))}
+            <div className="flex justify-between items-center py-2 text-sm"
+                 style={{ borderBottom: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Kyber-512 Key</span>
+              <span className="flex items-center gap-1.5" style={{ color: user?.hasKyberKey ? 'var(--success)' : 'var(--error)' }}>
+                <i className={user?.hasKyberKey ? 'fas fa-check-circle' : 'fas fa-times-circle'}></i>
+                {user?.hasKyberKey ? 'Registered' : 'Not set'}
+              </span>
+            </div>
             <div className="flex justify-between items-center py-2 text-sm">
               <span style={{ color: 'var(--text-muted)' }}>Security Clearance</span>
               <span className="px-2 py-0.5 rounded-full text-xs"

@@ -53,14 +53,20 @@ export default function Settings() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>⚙️ Settings</h2>
+        <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-cog"></i>
+          <span>Settings</span>
+        </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Configure encryption parameters and preferences</p>
         {saving && <span className="text-xs mt-1 inline-block animate-pulse" style={{ color: 'var(--accent)' }}>Saving…</span>}
       </div>
 
       {/* Encryption Configuration */}
       <section className="surface-card mb-6">
-        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>🔐 Encryption Configuration</h3>
+        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-lock"></i>
+          Encryption Configuration
+        </h3>
         <div className="space-y-4">
           <SettingRow label="Algorithm" desc="Primary encryption algorithm">
             <Select value={settings.algorithm} onChange={v => update({ algorithm: v })} options={['AES-256-GCM', 'AES-128-GCM', 'ChaCha20-Poly1305']} />
@@ -80,7 +86,10 @@ export default function Settings() {
 
       {/* Security */}
       <section className="surface-card mb-6">
-        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>🛡️ Security</h3>
+        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-shield-alt"></i>
+          Security
+        </h3>
         <div className="space-y-4">
           <SettingRow label="Session Timeout" desc="Auto-lock after inactivity">
             <Select value={settings.sessionTimeout} onChange={v => update({ sessionTimeout: v })} options={[
@@ -101,7 +110,10 @@ export default function Settings() {
 
       {/* Appearance */}
       <section className="surface-card">
-        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>🎨 Appearance</h3>
+        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <i className="fas fa-palette"></i>
+          Appearance
+        </h3>
         <div className="space-y-4">
           <SettingRow label="Animations" desc="Enable smooth transitions">
             <ToggleSwitch value={settings.animations} onChange={v => update({ animations: v })} />

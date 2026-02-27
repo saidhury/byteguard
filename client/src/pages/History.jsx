@@ -65,19 +65,22 @@ export default function History() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-6">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>📋 File History</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-history"></i>
+            <span>File History</span>
+          </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Record of all encryption operations</p>
         </div>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 text-xs rounded-lg transition disabled:opacity-50"
                   style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                   onClick={exportCSV} disabled={!items.length}>
-            📊 Export
+            <i className="fas fa-chart-bar mr-1"></i> Export
           </button>
           <button className="px-3 py-1.5 text-xs rounded-lg transition disabled:opacity-50"
                   style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
                   onClick={clearAll} disabled={!items.length}>
-            🗑️ Clear All
+            <i className="fas fa-trash mr-1"></i> Clear All
           </button>
         </div>
       </div>
@@ -89,7 +92,7 @@ export default function History() {
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <span className="text-5xl mb-4">📋</span>
+          <i className="fas fa-history text-5xl mb-4" style={{ color: 'var(--text-muted)' }}></i>
           <h3 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No encryption history</h3>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Files you encrypt will appear here</p>
         </div>
@@ -122,7 +125,7 @@ export default function History() {
                   </td>
                   <td className="px-3 py-2 text-xs whitespace-nowrap" style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>{fmtDate(item.timestamp)}</td>
                   <td className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <button className="transition" style={{ color: 'var(--text-muted)' }} onClick={() => deleteItem(item.id)}>🗑️</button>
+                    <button className="transition" style={{ color: 'var(--text-muted)' }} onClick={() => deleteItem(item.id)}><i className="fas fa-trash"></i></button>
                   </td>
                 </tr>
               ))}

@@ -7,6 +7,7 @@ import {
   uint8ToBase64, base64ToUint8
 } from '../crypto/pqc';
 import { getKyberKeypair } from '../crypto/keyStore';
+import FileViewer from '../components/modals/FileViewer';
 
 /**
  * GroupManager — CRUD for research groups with PQC file sharing.
@@ -34,7 +35,10 @@ export default function GroupManager() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-6">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>👥 Research Groups</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-users"></i>
+            <span>Research Groups</span>
+          </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Create groups and share encrypted files with teams</p>
         </div>
         <button
@@ -42,7 +46,8 @@ export default function GroupManager() {
           style={{ background: 'var(--accent)' }}
           onClick={() => setShowCreate(true)}
         >
-          + Create Group
+          <i className="fas fa-plus mr-1"></i>
+          Create Group
         </button>
       </div>
 
@@ -54,7 +59,7 @@ export default function GroupManager() {
         </div>
       ) : groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <span className="text-5xl mb-4">👥</span>
+          <i className="fas fa-users text-5xl mb-4" style={{ color: 'var(--text-muted)' }}></i>
           <h3 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No research groups</h3>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Create a group to share encrypted files with your team</p>
         </div>
@@ -68,7 +73,7 @@ export default function GroupManager() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">👥</span>
+                  <i className="fas fa-users text-2xl" style={{ color: 'var(--accent)' }}></i>
                   <div>
                     <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{g.name}</h3>
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>by {g.ownerName}</span>
@@ -86,7 +91,10 @@ export default function GroupManager() {
               )}
               <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>👤 {g.memberCount} members</span>
+                  <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                    <i className="fas fa-user"></i>
+                    {g.memberCount} members
+                  </span>
                   <span className="px-2 py-0.5 rounded-full text-xs"
                         style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}>
                     {g.myRole}
@@ -148,8 +156,13 @@ function CreateGroupModal({ onClose, onCreated }) {
            onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>👥 Create Research Group</h3>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-users"></i>
+            Create Research Group
+          </h3>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
         </div>
         {/* Form */}
         <form onSubmit={submit} className="p-5 flex flex-col gap-4">
@@ -182,7 +195,12 @@ function CreateGroupModal({ onClose, onCreated }) {
             <button type="submit" className="px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-50"
                     style={{ background: 'var(--accent)' }}
                     disabled={creating}>
-              {creating ? 'Creating…' : '+ Create Group'}
+              {creating ? 'Creating…' : (
+                <>
+                  <i className="fas fa-plus mr-1"></i>
+                  Create Group
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -201,6 +219,8 @@ function GroupDetailModal({ groupId, onClose }) {
   const [searchResults, setSearchResults] = useState([]);
   const [addingMember, setAddingMember] = useState(false);
   const [showShareFile, setShowShareFile] = useState(false);
+  const [activeTab, setActiveTab] = useState('members');
+  const [viewFile, setViewFile] = useState(null);
   const { showToast } = useToast();
   const { user } = useAuth();
 
@@ -262,6 +282,31 @@ function GroupDetailModal({ groupId, onClose }) {
     }
   };
 
+  const handleViewFile = (file) => {
+    // Try direct myKemCiphertext first, then parse kemCiphertexts JSON
+    let kemPayload = file.myKemCiphertext;
+    if (!kemPayload && file.kemCiphertexts) {
+      try {
+        const cts = typeof file.kemCiphertexts === 'string'
+          ? JSON.parse(file.kemCiphertexts)
+          : file.kemCiphertexts;
+        kemPayload = cts[String(user.id)];
+      } catch (e) {
+        console.error('Failed to parse kemCiphertexts', e);
+      }
+    }
+    if (kemPayload) {
+      setViewFile({
+        fileId: file.fileId || file.id,
+        kemPayload,
+        fileName: file.fileName,
+        contentType: file.contentType || 'application/octet-stream',
+      });
+    } else {
+      showToast('No KEM key available to view this file', 'warning');
+    }
+  };
+
   /* Loading overlay */
   if (loading) return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'var(--overlay)' }}>
@@ -282,113 +327,169 @@ function GroupDetailModal({ groupId, onClose }) {
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{group.name}</h3>
+            <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <i className="fas fa-users"></i>
+              {group.name}
+            </h3>
             {group.description && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{group.description}</p>}
           </div>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
+          <button
+            className={`flex-1 px-5 py-3 text-sm font-medium transition ${activeTab === 'members' ? 'border-b-2' : ''}`}
+            style={{
+              color: activeTab === 'members' ? 'var(--accent)' : 'var(--text-secondary)',
+              borderColor: activeTab === 'members' ? 'var(--accent)' : 'transparent',
+            }}
+            onClick={() => setActiveTab('members')}
+          >
+            <i className="fas fa-user mr-2"></i>
+            Members ({group.members?.length || 0})
+          </button>
+          <button
+            className={`flex-1 px-5 py-3 text-sm font-medium transition ${activeTab === 'files' ? 'border-b-2' : ''}`}
+            style={{
+              color: activeTab === 'files' ? 'var(--accent)' : 'var(--text-secondary)',
+              borderColor: activeTab === 'files' ? 'var(--accent)' : 'transparent',
+            }}
+            onClick={() => setActiveTab('files')}
+          >
+            <i className="fas fa-file mr-2"></i>
+            Files ({group.sharedFiles?.length || 0})
+          </button>
         </div>
 
         <div className="p-5 flex flex-col gap-5">
-          {/* Members */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Members ({group.members?.length || 0})</h4>
-            </div>
-
-            <div className="flex flex-col gap-2 mb-3">
-              {group.members?.map(m => (
-                <div key={m.id} className="flex items-center justify-between py-2 px-3 rounded-lg"
-                     style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                          style={{ background: 'var(--accent)' }}>
-                      {m.researcherId?.charAt(0)?.toUpperCase() || '?'}
-                    </span>
-                    <div>
-                      <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{m.researcherId}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[0.6rem]" style={{ color: 'var(--text-muted)' }}>{m.role}</span>
-                        {m.hasKyberKey && <span className="text-[0.6rem]" style={{ color: 'var(--success)' }}>🔑</span>}
-                      </div>
-                    </div>
-                  </div>
-                  {isAdmin && m.userId !== group.ownerId && (
-                    <button className="text-xs transition" style={{ color: 'var(--error)' }}
-                            onClick={() => removeMember(m.userId)}>
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Add member search */}
-            {isAdmin && (
-              <div className="flex flex-col gap-1.5">
-                <input
-                  type="text" value={memberQuery}
-                  onChange={e => setMemberQuery(e.target.value)}
-                  placeholder="Search researcher to add…"
-                  className="rounded-lg px-3 py-2 text-sm outline-none transition"
-                  style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                />
-                {searchResults.length > 0 && (
-                  <div className="rounded-lg max-h-32 overflow-y-auto"
-                       style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-                    {searchResults.map(u => (
-                      <button key={u.id} type="button"
-                              className="w-full text-left px-3 py-2 text-sm transition flex justify-between"
-                              style={{ color: 'var(--text-secondary)' }}
-                              onClick={() => addMember(u.researcherId)}
-                              disabled={addingMember}>
-                        <span>{u.researcherId}</span>
-                        {u.hasKyberKey && <span className="text-xs" style={{ color: 'var(--success)' }}>🔑</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Shared files */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Shared Files ({group.sharedFiles?.length || 0})</h4>
-              <button className="px-3 py-1 text-xs rounded-lg transition"
-                      style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid transparent' }}
-                      onClick={() => setShowShareFile(true)}>
-                + Share File
-              </button>
-            </div>
-            {group.sharedFiles?.length === 0 ? (
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No files shared with this group yet</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {group.sharedFiles?.map(f => (
-                  <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded-lg"
+          {/* Members Tab */}
+          {activeTab === 'members' && (
+            <section>
+              <div className="flex flex-col gap-2 mb-3">
+                {group.members?.map(m => (
+                  <div key={m.id} className="flex items-center justify-between py-2 px-3 rounded-lg"
                        style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-2">
-                      <span>📄</span>
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                            style={{ background: 'var(--accent)' }}>
+                        {m.researcherId?.charAt(0)?.toUpperCase() || '?'}
+                      </span>
                       <div>
-                        <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{f.fileName}</span>
-                        <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>by {f.sharedBy}</span>
+                        <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{m.researcherId}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[0.6rem]" style={{ color: 'var(--text-muted)' }}>{m.role}</span>
+                          {m.hasKyberKey && (
+                            <span className="text-[0.6rem] flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                              <i className="fas fa-key"></i>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(f.createdAt).toLocaleDateString()}</span>
+                    {isAdmin && m.userId !== group.ownerId && (
+                      <button className="text-xs transition flex items-center gap-1" style={{ color: 'var(--error)' }}
+                              onClick={() => removeMember(m.userId)}>
+                        <i className="fas fa-times"></i>
+                        Remove
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
-          </section>
+
+              {/* Add member search */}
+              {isAdmin && (
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    type="text" value={memberQuery}
+                    onChange={e => setMemberQuery(e.target.value)}
+                    placeholder="Search researcher to add…"
+                    className="rounded-lg px-3 py-2 text-sm outline-none transition"
+                    style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  />
+                  {searchResults.length > 0 && (
+                    <div className="rounded-lg max-h-32 overflow-y-auto"
+                         style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+                      {searchResults.map(u => (
+                        <button key={u.id} type="button"
+                                className="w-full text-left px-3 py-2 text-sm transition flex justify-between"
+                                style={{ color: 'var(--text-secondary)' }}
+                                onClick={() => addMember(u.researcherId)}
+                                disabled={addingMember}>
+                          <span>{u.researcherId}</span>
+                          {u.hasKyberKey && (
+                            <span className="text-xs flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                              <i className="fas fa-key"></i>
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Shared Files Tab */}
+          {activeTab === 'files' && (
+            <section>
+              <div className="flex items-center justify-end mb-3">
+                <button className="px-3 py-1 text-xs rounded-lg transition flex items-center gap-1"
+                        style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid transparent' }}
+                        onClick={() => setShowShareFile(true)}>
+                  <i className="fas fa-plus"></i>
+                  Share File
+                </button>
+              </div>
+              {group.sharedFiles?.length === 0 ? (
+                <div className="text-center py-8">
+                  <i className="fas fa-file text-3xl block mb-2" style={{ color: 'var(--text-muted)' }}></i>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No files shared with this group yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {group.sharedFiles?.map(f => (
+                    <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded-lg"
+                         style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <i className="fas fa-file" style={{ color: 'var(--accent)' }}></i>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-sm block truncate" style={{ color: 'var(--text-primary)' }}>{f.fileName}</span>
+                          <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>by {f.sharedBy}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button
+                          className="px-2 py-1 text-xs rounded-lg transition flex items-center gap-1"
+                          style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+                          onClick={() => handleViewFile(f)}
+                        >
+                          <i className="fas fa-eye"></i>
+                          View
+                        </button>
+                        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                          {new Date(f.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Actions */}
           <div className="flex justify-between items-center pt-3" style={{ borderTop: '1px solid var(--border)' }}>
             {group.isOwner && (
-              <button className="px-3 py-1.5 text-xs rounded-lg transition"
+              <button className="px-3 py-1.5 text-xs rounded-lg transition flex items-center gap-1"
                       style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
                       onClick={deleteGroup}>
-                🗑️ Delete Group
+                <i className="fas fa-trash"></i>
+                Delete Group
               </button>
             )}
             <button className="px-4 py-2 rounded-lg text-sm transition ml-auto"
@@ -407,6 +508,16 @@ function GroupDetailModal({ groupId, onClose }) {
           />
         )}
       </div>
+
+      {viewFile && (
+        <FileViewer
+          fileId={viewFile.fileId}
+          kemPayload={viewFile.kemPayload}
+          fileName={viewFile.fileName}
+          contentType={viewFile.contentType}
+          onClose={() => setViewFile(null)}
+        />
+      )}
     </div>
   );
 }
@@ -432,7 +543,7 @@ function GroupShareFileModal({ groupId, onClose, onShared }) {
 
     setSending(true);
     try {
-      /* ── Step 1: recover the original AES key from owner's KEM payload ── */
+      /* Step 1: recover the original AES key from owner's KEM payload */
       setStatus('Recovering file encryption key…');
       const selectedFile = myFiles.find(f => String(f.id) === String(fileId));
       const ownerKemCtB64 = selectedFile?.ownerKemCt;
@@ -448,7 +559,7 @@ function GroupShareFileModal({ groupId, onClose, onShared }) {
       const ownerWrapped   = ownerKemFull.slice(ownerKemFull.length - 32);
       const aesKeyBytes    = await unwrapAESKeyWithKyber(ownerKemCipher, ownerWrapped, kp.privateKey);
 
-      /* ── Step 2: wrap the SAME AES key for each group member ── */
+      /* Step 2: wrap the SAME AES key for each group member */
       setStatus('Fetching group member public keys…');
       const pubkeys = await api.getGroupPubkeys(groupId);
       if (pubkeys.length === 0) throw new Error('No group members have Kyber public keys');
@@ -484,8 +595,13 @@ function GroupShareFileModal({ groupId, onClose, onShared }) {
            onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>📤 Share File with Group</h3>
-          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-share-square"></i>
+            Share File with Group
+          </h3>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
         </div>
         {/* Form */}
         <form onSubmit={submit} className="p-5 flex flex-col gap-4">
@@ -508,7 +624,11 @@ function GroupShareFileModal({ groupId, onClose, onShared }) {
 
           <div className="rounded-lg p-3 text-xs"
                style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)', border: '1px solid transparent' }}>
-            <strong>🔐 End-to-End Encrypted:</strong> The AES key will be individually encapsulated with each member's Kyber-512 public key. Only group members can decrypt.
+            <strong className="flex items-center gap-2">
+              <i className="fas fa-lock"></i>
+              End-to-End Encrypted:
+            </strong>
+            <span className="block mt-1">The AES key will be individually encapsulated with each member's Kyber-512 public key. Only group members can decrypt.</span>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -520,7 +640,12 @@ function GroupShareFileModal({ groupId, onClose, onShared }) {
             <button type="submit" className="px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-50"
                     style={{ background: 'var(--accent)' }}
                     disabled={sending}>
-              {sending ? 'Encrypting…' : '🔐 Share with Group'}
+              {sending ? 'Encrypting…' : (
+                <>
+                  <i className="fas fa-lock mr-1"></i>
+                  Share with Group
+                </>
+              )}
             </button>
           </div>
         </form>

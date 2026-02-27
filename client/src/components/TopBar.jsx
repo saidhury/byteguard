@@ -30,7 +30,8 @@ export default function TopBar({ user, onMenuToggle, onProfileClick }) {
       {/* ── Mobile brand ──────────────────────────────── */}
       <div className="flex items-center gap-2 font-bold text-sm lg:hidden"
            style={{ color: 'var(--text-primary)' }}>
-        <span>🛡️</span><span>ByteGuard</span>
+        <i className="fas fa-shield-alt" style={{ color: 'var(--accent)' }}></i>
+        <span>ByteGuard</span>
       </div>
       <div className="hidden lg:block" />
 

@@ -17,7 +17,7 @@ export default function Toast({ message, type = 'info', onClose }) {
     return () => clearTimeout(t);
   }, [onClose]);
 
-  const icons = { success: '✓', error: '✗', warning: '⚠', info: 'ℹ' };
+  const icons = { success: 'fas fa-check-circle', error: 'fas fa-times-circle', warning: 'fas fa-exclamation-triangle', info: 'fas fa-info-circle' };
   const p = palette[type] || palette.info;
 
   return (
@@ -26,7 +26,7 @@ export default function Toast({ message, type = 'info', onClose }) {
       style={{ background: p.bg, border: `1px solid ${p.border}`, color: p.color }}
       onClick={onClose}
     >
-      <span className="text-base font-bold">{icons[type] || icons.info}</span>
+      <i className={icons[type] || icons.info}></i>
       <span className="flex-1">{message}</span>
     </div>
   );

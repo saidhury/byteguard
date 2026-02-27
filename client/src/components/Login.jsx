@@ -49,7 +49,7 @@ export default function Login() {
         className="fixed top-4 right-4 w-9 h-9 rounded-lg flex items-center justify-center transition z-50"
         style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}
       >
-        {theme === 'dark' ? '☀️' : '🌙'}
+        {theme === 'dark' ? <i className="fas fa-sun" style={{ color: 'var(--warning)' }}></i> : <i className="fas fa-moon" style={{ color: 'var(--accent2)' }}></i>}
       </button>
 
       <div className="relative z-10 rounded-xl p-8 w-full max-w-md"
@@ -57,7 +57,7 @@ export default function Login() {
 
         {/* Brand header */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🛡️</div>
+          <i className="fas fa-shield-alt text-5xl mb-3" style={{ color: 'var(--accent)' }}></i>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>ByteGuard</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Post-Quantum Secure Data Sharing</p>
         </div>
