@@ -94,6 +94,12 @@ const api = {
   downloadFile: (fileId) =>
     request(`/files/download/${fileId}`, { _binary: true }),
 
+  viewFile: (fileId) =>
+    request(`/files/view/${fileId}`, { _binary: true }),
+
+  getFileMeta: (fileId) =>
+    request(`/files/${fileId}/meta`),
+
   myFiles: () =>
     request('/files/my-files'),
 
@@ -128,6 +134,42 @@ const api = {
 
   updateSettings: (settings) =>
     request('/settings/', { method: 'PUT', body: JSON.stringify(settings) }),
+
+  // ── Groups ─────────────────────────────────────
+  listGroups: () => request('/groups/'),
+
+  createGroup: (name, description) =>
+    request('/groups/create', {
+      method: 'POST',
+      body: JSON.stringify({ name, description })
+    }),
+
+  getGroup: (groupId) =>
+    request(`/groups/${groupId}`),
+
+  deleteGroup: (groupId) =>
+    request(`/groups/${groupId}`, { method: 'DELETE' }),
+
+  addGroupMember: (groupId, researcherId, role = 'member') =>
+    request(`/groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ researcherId, role })
+    }),
+
+  removeGroupMember: (groupId, userId) =>
+    request(`/groups/${groupId}/members/${userId}`, { method: 'DELETE' }),
+
+  getGroupPubkeys: (groupId) =>
+    request(`/groups/${groupId}/pubkeys`),
+
+  shareFileWithGroup: (groupId, fileId, kemCiphertexts) =>
+    request(`/groups/${groupId}/share-file`, {
+      method: 'POST',
+      body: JSON.stringify({ fileId, kemCiphertexts })
+    }),
+
+  listGroupSharedFiles: () =>
+    request('/groups/shared-files'),
 };
 
 export default api;

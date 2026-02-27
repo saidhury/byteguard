@@ -1,12 +1,21 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import {
-  generateAESKey, exportAESKey, encryptAES, sha256Hex, uint8ToBase64, calcEntropy
+  generateAESKey, exportAESKey, encryptAES, sha256Hex,
+  uint8ToBase64, calcEntropy, wrapAESKeyWithKyber
 } from '../crypto/pqc';
+import { getKyberKeypair } from '../crypto/keyStore';
 
+/**
+ * Encryption — the main "Encryption Lab" page.
+ * Provides drag-and-drop file encryption with an animated progress timeline
+ * and entropy visualisation.  All colours come from CSS custom properties.
+ */
 export default function Encryption() {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [file, setFile] = useState(null);
   const [encrypting, setEncrypting] = useState(false);
   const [result, setResult] = useState(null);
@@ -28,13 +37,7 @@ export default function Encryption() {
     onFilePick(e.dataTransfer.files[0]);
   };
 
-  /**
-   * REAL encryption pipeline:
-   * 1. Generate AES-256-GCM key (WebCrypto)
-   * 2. Encrypt file with AES-256-GCM
-   * 3. Compute SHA-256 fingerprint of ciphertext
-   * 4. Upload encrypted blob (IV prepended) + metadata to Flask backend
-   */
+  /** Real encryption pipeline — see comments inside */
   const encrypt = async () => {
     if (!file) return;
     setEncrypting(true);
@@ -44,29 +47,34 @@ export default function Encryption() {
       const buf = await file.arrayBuffer();
       const plaintext = new Uint8Array(buf);
 
-      // Phase 1 – Generate AES-256-GCM key
+      // 1 — Generate AES-256-GCM key
       setPhase(1);
       const aesKey = await generateAESKey();
       const aesKeyBytes = await exportAESKey(aesKey);
 
-      // Phase 2 – Kyber keypair ready (local keys already generated at login)
+      // 2 — Wrap AES key with owner's Kyber public key (for later retrieval)
       setPhase(2);
-      await delay(200);
+      const kp = await getKyberKeypair(user.researcherId);
+      if (!kp) throw new Error('No Kyber keypair found — please re-login.');
+      const { kemCiphertext: ownerKemCT, wrappedKey: ownerWrappedKey } =
+        await wrapAESKeyWithKyber(aesKeyBytes, kp.publicKey);
+      const ownerKemPayload = new Uint8Array(ownerKemCT.length + ownerWrappedKey.length);
+      ownerKemPayload.set(ownerKemCT, 0);
+      ownerKemPayload.set(ownerWrappedKey, ownerKemCT.length);
 
-      // Phase 3 – Encrypt with AES-256-GCM
+      // 3 — Encrypt with AES-256-GCM
       setPhase(3);
       const { ciphertext, iv } = await encryptAES(aesKey, plaintext);
 
-      // Phase 4 – Compute SHA-256 fingerprint
+      // 4 — SHA-256 fingerprint
       setPhase(4);
       const fingerprint = await sha256Hex(ciphertext);
 
-      // Phase 5 – Build blob (IV || ciphertext) and upload to server
+      // 5 — Upload (IV ∥ ciphertext)
       setPhase(5);
       const encBlob = new Blob([iv, ciphertext]);
       const entropy = calcEntropy(ciphertext.slice(0, 4096));
 
-      // Upload to Flask backend
       const formData = new FormData();
       formData.append('file', encBlob, file.name + '.enc');
       formData.append('fileName', file.name);
@@ -74,6 +82,7 @@ export default function Encryption() {
       formData.append('iv', uint8ToBase64(iv));
       formData.append('sha256Hash', fingerprint);
       formData.append('contentType', file.type || 'application/octet-stream');
+      formData.append('ownerKemCt', uint8ToBase64(ownerKemPayload));
 
       const uploadResult = await api.uploadFile(formData);
 
@@ -152,23 +161,23 @@ export default function Encryption() {
 
   return (
     <div>
+      {/* ── Page header ─────────────────────────────── */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-white">🔐 Encryption Lab</h2>
-        <p className="text-gray-400 text-sm mt-1">
+        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>🔐 Encryption Lab</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Post-quantum secure file encryption with AES-256-GCM + CRYSTALS-Kyber-512
         </p>
       </div>
 
-      {/* Drop zone */}
+      {/* ── Drop zone ───────────────────────────────── */}
       {!result && (
         <div
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-            dragOver
-              ? 'border-indigo-500 bg-indigo-500/10'
-              : file
-                ? 'border-gray-600 bg-white/5 border-solid'
-                : 'border-gray-700 bg-white/[0.02] hover:border-indigo-500 hover:bg-indigo-500/5'
-          }`}
+          className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
+          style={{
+            borderColor: dragOver ? 'var(--accent)' : file ? 'var(--border)' : 'var(--border)',
+            borderStyle: file ? 'solid' : 'dashed',
+            background: dragOver ? 'var(--accent-soft)' : file ? 'var(--surface-secondary)' : 'var(--surface)',
+          }}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
@@ -179,11 +188,12 @@ export default function Encryption() {
             <div className="flex items-center gap-3 text-left">
               <span className="text-3xl">📄</span>
               <div className="flex-1 min-w-0">
-                <strong className="block text-white truncate">{file.name}</strong>
-                <span className="text-sm text-gray-500">{fmtSize(file.size)}</span>
+                <strong className="block truncate" style={{ color: 'var(--text-primary)' }}>{file.name}</strong>
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{fmtSize(file.size)}</span>
               </div>
               <button
-                className="px-3 py-1.5 text-xs border border-gray-700 text-gray-400 rounded-lg hover:border-red-500 hover:text-red-400 transition"
+                className="px-3 py-1.5 text-xs rounded-lg transition"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                 onClick={(e) => { e.stopPropagation(); reset(); }}
               >
                 ✕
@@ -192,18 +202,19 @@ export default function Encryption() {
           ) : (
             <div className="flex flex-col items-center gap-2">
               <span className="text-4xl">📁</span>
-              <p className="text-gray-400">Drop a file here or click to browse</p>
-              <span className="text-xs text-gray-600">Max 100 MB · Any file type</span>
+              <p style={{ color: 'var(--text-secondary)' }}>Drop a file here or click to browse</p>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Max 100 MB · Any file type</span>
             </div>
           )}
         </div>
       )}
 
-      {/* Action button */}
+      {/* ── Encrypt button ──────────────────────────── */}
       {file && !result && (
         <div className="flex justify-center mt-6">
           <button
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 px-8 rounded-xl transition disabled:opacity-50 text-base shadow-lg shadow-indigo-500/20"
+            className="font-medium py-3 px-8 rounded-xl transition disabled:opacity-50 text-base text-white"
+            style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--shadow)' }}
             onClick={encrypt}
             disabled={encrypting}
           >
@@ -212,28 +223,24 @@ export default function Encryption() {
         </div>
       )}
 
-      {/* Progress timeline */}
+      {/* ── Progress timeline ───────────────────────── */}
       {encrypting && (
         <div className="flex flex-col md:flex-row md:justify-between gap-2 py-4 mt-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className={`flex md:flex-col items-center gap-3 md:gap-1.5 md:text-center p-2 rounded-lg text-sm flex-1 transition-all ${
-                phase === i
-                  ? 'text-indigo-400 bg-indigo-500/10'
-                  : phase > i
-                    ? 'text-emerald-400'
-                    : 'text-gray-600'
-              }`}
+              className="flex md:flex-col items-center gap-3 md:gap-1.5 md:text-center p-2 rounded-lg text-sm flex-1 transition-all"
+              style={{
+                color: phase === i ? 'var(--accent-text)' : phase > i ? 'var(--success)' : 'var(--text-muted)',
+                background: phase === i ? 'var(--accent-soft)' : 'transparent',
+              }}
             >
               <div
-                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                  phase === i
-                    ? 'border-indigo-500 bg-indigo-500/15'
-                    : phase > i
-                      ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
-                      : 'border-gray-700'
-                }`}
+                className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 transition-all"
+                style={{
+                  borderColor: phase === i ? 'var(--accent)' : phase > i ? 'var(--success)' : 'var(--border)',
+                  background: phase === i ? 'var(--accent-soft)' : phase > i ? 'var(--success-soft)' : 'transparent',
+                }}
               >
                 {phase > i ? '✓' : i}
               </div>
@@ -243,20 +250,21 @@ export default function Encryption() {
         </div>
       )}
 
-      {/* Result panel */}
+      {/* ── Result panel ────────────────────────────── */}
       {result && (
         <div className="animate-fade-in">
           <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-            <h3 className="text-lg font-semibold text-emerald-400">✅ Encryption Complete</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--success)' }}>✅ Encryption Complete</h3>
             <button
-              className="px-3 py-1.5 text-xs border border-gray-700 text-gray-400 rounded-lg hover:border-indigo-500 hover:text-indigo-400 transition"
+              className="px-3 py-1.5 text-xs rounded-lg transition"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
               onClick={reset}
             >
               Encrypt Another
             </button>
           </div>
 
-          {/* Stats */}
+          {/* Stats grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             {[
               ['Original', fmtSize(result.originalSize)],
@@ -264,30 +272,36 @@ export default function Encryption() {
               ['Entropy', result.entropy.toFixed(4) + ' bits/byte'],
               ['Algorithm', 'AES-256-GCM'],
             ].map(([label, value]) => (
-              <div key={label} className="bg-gray-900/80 border border-gray-800 rounded-lg p-3">
-                <span className="text-[0.65rem] text-gray-500 uppercase tracking-wider">{label}</span>
-                <span className="block text-lg font-bold text-white mt-0.5">{value}</span>
+              <div key={label} className="rounded-lg p-3"
+                   style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+                <span className="text-[0.65rem] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{label}</span>
+                <span className="block text-lg font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{value}</span>
               </div>
             ))}
           </div>
 
           {/* Entropy canvas */}
-          <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-4 mb-4">
-            <h4 className="text-sm font-medium text-white mb-3">Entropy Visualization</h4>
-            <canvas ref={canvasRef} className="w-full h-[120px] rounded-lg bg-gray-950" />
+          <div className="rounded-xl p-4 mb-4"
+               style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+            <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--text-primary)' }}>Entropy Visualization</h4>
+            <canvas ref={canvasRef} className="w-full h-[120px] rounded-lg"
+                    style={{ background: 'var(--code-bg)' }} />
           </div>
 
-          {/* Fingerprint */}
-          <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-4 mb-4">
-            <h4 className="text-sm font-medium text-white mb-3">File Fingerprint (SHA-256)</h4>
-            <code className="block break-all bg-gray-950 rounded-lg p-3 text-xs text-indigo-400 leading-relaxed font-mono">
+          {/* SHA-256 fingerprint */}
+          <div className="rounded-xl p-4 mb-4"
+               style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+            <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--text-primary)' }}>File Fingerprint (SHA-256)</h4>
+            <code className="block break-all rounded-lg p-3 text-xs leading-relaxed font-mono"
+                  style={{ background: 'var(--code-bg)', color: 'var(--accent-text)' }}>
               {result.fingerprint}
             </code>
           </div>
 
           {/* Security metadata */}
-          <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-4 mb-4">
-            <h4 className="text-sm font-medium text-white mb-3">Security Metadata</h4>
+          <div className="rounded-xl p-4 mb-4"
+               style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+            <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--text-primary)' }}>Security Metadata</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {[
                 ['Cipher', 'AES-256-GCM'],
@@ -297,16 +311,19 @@ export default function Encryption() {
                 ['Key Wrapping', 'Kyber KEM + XOR'],
                 ['PQC Level', 'NIST Level 1 (Kyber-512)'],
               ].map(([label, value]) => (
-                <div key={label} className="flex justify-between py-2 border-b border-gray-800 text-sm last:border-0">
-                  <span className="text-gray-500">{label}</span>
-                  <span className="text-white">{value}</span>
+                <div key={label} className="flex justify-between py-2 text-sm last:border-0"
+                     style={{ borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{value}</span>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Download encrypted file */}
           <button
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition text-base shadow-lg shadow-indigo-500/20"
+            className="w-full font-medium py-3 rounded-xl transition text-base text-white"
+            style={{ background: 'var(--accent)', boxShadow: '0 4px 14px var(--shadow)' }}
             onClick={download}
           >
             ⬇️ Download Encrypted File

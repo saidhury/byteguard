@@ -12,7 +12,15 @@ services:
       - ./storage:/app/storage
     environment:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production-please}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-jwt-secret-in-production}
       - FLASK_ENV=production
+      - CORS_ORIGINS=http://localhost,http://localhost:80
+      - JWT_EXPIRY_HOURS=24
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build: ./client
@@ -21,4 +29,5 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_started

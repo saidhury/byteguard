@@ -6,6 +6,10 @@ import TopBar from './TopBar';
 import Toast from './Toast';
 import ProfileModal from './modals/ProfileModal';
 
+/**
+ * Layout — page shell with sidebar, top bar, toast stack.
+ * Background colour comes from CSS var(--bg) so it tracks theme automatically.
+ */
 export default function Layout({ children }) {
   const { user } = useAuth();
   const { toasts, removeToast } = useToast();
@@ -13,17 +17,12 @@ export default function Layout({ children }) {
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-950">
-      {/* Background gradients */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_50%,rgba(99,102,241,0.08),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgba(139,92,246,0.06),transparent_50%)]" />
-      </div>
-
-      {/* Sidebar overlay (mobile) */}
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ background: 'var(--overlay)' }}
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -43,7 +42,7 @@ export default function Layout({ children }) {
 
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
 
-      {/* Toasts */}
+      {/* Toast stack */}
       <div className="fixed bottom-4 right-4 z-[9999] flex flex-col-reverse gap-2 max-w-[calc(100vw-2rem)]">
         {toasts.map(t => (
           <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)} />

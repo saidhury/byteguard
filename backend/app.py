@@ -36,15 +36,27 @@ def create_app(config_class=Config):
     # Create tables
     with app.app_context():
         db.create_all()
+        # Migrate: add owner_kem_ct to file_metadata if missing
+        with db.engine.connect() as conn:
+            cols = [r[1] for r in conn.execute(db.text(
+                "PRAGMA table_info(file_metadata)"
+            ))]
+            if 'owner_kem_ct' not in cols:
+                conn.execute(db.text(
+                    "ALTER TABLE file_metadata ADD COLUMN owner_kem_ct TEXT"
+                ))
+                conn.commit()
 
     # Register blueprints
     from routes.auth_routes import auth_bp
     from routes.files_routes import files_bp
     from routes.settings_routes import settings_bp
+    from routes.group_routes import groups_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(files_bp, url_prefix='/api/files')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
+    app.register_blueprint(groups_bp, url_prefix='/api/groups')
 
     # Health check
     @app.route('/api/health')

@@ -3,11 +3,16 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/client';
 import {
-  generateAESKey, exportAESKey, encryptAES, sha256Hex,
-  wrapAESKeyWithKyber, uint8ToBase64, base64ToUint8
+  wrapAESKeyWithKyber, unwrapAESKeyWithKyber,
+  uint8ToBase64, base64ToUint8
 } from '../../crypto/pqc';
 import { getKyberKeypair } from '../../crypto/keyStore';
 
+/**
+ * ShareModal — select a file, search for a recipient, choose a
+ * permission level, then Kyber-KEM-wrap an AES-256 key and share.
+ * Themed with CSS custom properties for light / dark support.
+ */
 export default function ShareModal({ onClose, onShared }) {
   const [myFiles, setMyFiles] = useState([]);
   const [fileId, setFileId] = useState('');
@@ -23,12 +28,9 @@ export default function ShareModal({ onClose, onShared }) {
     api.myFiles().then(setMyFiles).catch(() => {});
   }, []);
 
-  // Search for recipients
+  /* Debounced recipient search */
   useEffect(() => {
-    if (recipientQuery.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
+    if (recipientQuery.trim().length < 2) { setSearchResults([]); return; }
     const timer = setTimeout(() => {
       api.searchUsers(recipientQuery.trim()).then(setSearchResults).catch(() => {});
     }, 300);
@@ -48,24 +50,30 @@ export default function ShareModal({ onClose, onShared }) {
 
     setSending(true);
     try {
-      // 1. Fetch recipient's Kyber public key
+      /* ── Step 1: recover the original AES key from owner's KEM payload ── */
+      const selectedFile = myFiles.find(f => String(f.id) === String(fileId));
+      const ownerKemCtB64 = selectedFile?.ownerKemCt;
+      if (!ownerKemCtB64) {
+        throw new Error('This file has no stored owner key — please re-encrypt it first.');
+      }
+
+      const kp = await getKyberKeypair(user.researcherId);
+      if (!kp) throw new Error('No Kyber keypair found — please re-login.');
+
+      const ownerKemFull   = base64ToUint8(ownerKemCtB64);
+      const ownerKemCipher = ownerKemFull.slice(0, ownerKemFull.length - 32);
+      const ownerWrapped   = ownerKemFull.slice(ownerKemFull.length - 32);
+      const aesKeyBytes    = await unwrapAESKeyWithKyber(ownerKemCipher, ownerWrapped, kp.privateKey);
+
+      /* ── Step 2: wrap the SAME AES key for the recipient ── */
       const { kyberPublicKey: recipPKb64 } = await api.getPublicKey(selectedRecipient.researcherId);
       const recipientPK = base64ToUint8(recipPKb64);
-
-      // 2. Generate a fresh AES-256 key for this share
-      const aesKey = await generateAESKey();
-      const aesKeyBytes = await exportAESKey(aesKey);
-
-      // 3. Wrap the AES key with Kyber KEM
       const { kemCiphertext, wrappedKey } = await wrapAESKeyWithKyber(aesKeyBytes, recipientPK);
-
-      // 4. Combine kemCiphertext + wrappedKey into a single base64 payload
       const combined = new Uint8Array(kemCiphertext.length + wrappedKey.length);
       combined.set(kemCiphertext, 0);
       combined.set(wrappedKey, kemCiphertext.length);
       const kemPayloadB64 = uint8ToBase64(combined);
 
-      // 5. Share on server
       const result = await api.shareFile({
         fileId: Number(fileId),
         recipientId: selectedRecipient.researcherId,
@@ -82,69 +90,73 @@ export default function ShareModal({ onClose, onShared }) {
     }
   };
 
+  /* ---- Shared inline-style helpers ---- */
+  const inputStyle = {
+    background: 'var(--input-bg)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-primary)',
+  };
+
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-800">
-          <h3 className="font-semibold text-white">📤 Share Encrypted File</h3>
-          <button className="text-gray-400 hover:text-white" onClick={onClose}>✕</button>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in"
+         style={{ background: 'var(--overlay)' }} onClick={onClose}>
+      <div className="rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in"
+           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+           onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex justify-between items-center px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>📤 Share Encrypted File</h3>
+          <button style={{ color: 'var(--text-muted)' }} onClick={onClose}>✕</button>
         </div>
 
         <form onSubmit={submit} className="p-5 flex flex-col gap-4">
           {/* File select */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-400">File</label>
-            <select
-              value={fileId}
-              onChange={e => setFileId(e.target.value)}
-              className="bg-white/5 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-            >
+            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>File</label>
+            <select value={fileId} onChange={e => setFileId(e.target.value)}
+                    className="rounded-lg px-3 py-2 text-sm outline-none transition"
+                    style={inputStyle}>
               <option value="">Select an encrypted file…</option>
-              {myFiles.map(f => (
-                <option key={f.id} value={f.id}>{f.fileName}</option>
-              ))}
+              {myFiles.map(f => <option key={f.id} value={f.id}>{f.fileName}</option>)}
             </select>
           </div>
 
           {/* Recipient search */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-400">Recipient</label>
+            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Recipient</label>
             {selectedRecipient ? (
-              <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/30 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg px-3 py-2"
+                   style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent)' }}>
                 <div>
-                  <span className="text-indigo-400 text-sm font-medium">{selectedRecipient.researcherId}</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--accent-text)' }}>{selectedRecipient.researcherId}</span>
                   {selectedRecipient.hasKyberKey && (
-                    <span className="ml-2 text-xs text-emerald-400">🔑 Kyber key</span>
+                    <span className="ml-2 text-xs" style={{ color: 'var(--success)' }}>🔑 Kyber key</span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="text-gray-400 hover:text-white text-sm"
-                  onClick={() => { setSelectedRecipient(null); setRecipientQuery(''); }}
-                >
+                <button type="button" className="text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                        onClick={() => { setSelectedRecipient(null); setRecipientQuery(''); }}>
                   ✕
                 </button>
               </div>
             ) : (
               <>
-                <input
-                  type="text"
-                  value={recipientQuery}
-                  onChange={e => setRecipientQuery(e.target.value)}
-                  placeholder="Search researcher ID..."
-                  className="bg-white/5 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 outline-none focus:border-indigo-500"
-                />
+                <input type="text" value={recipientQuery}
+                       onChange={e => setRecipientQuery(e.target.value)}
+                       placeholder="Search researcher ID..."
+                       className="rounded-lg px-3 py-2 text-sm outline-none transition"
+                       style={inputStyle} />
                 {searchResults.length > 0 && (
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg max-h-40 overflow-y-auto">
+                  <div className="rounded-lg max-h-40 overflow-y-auto"
+                       style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
                     {searchResults.map(u => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-indigo-500/15 hover:text-indigo-400 transition flex justify-between"
-                        onClick={() => { setSelectedRecipient(u); setSearchResults([]); }}
-                      >
+                      <button key={u.id} type="button"
+                              className="w-full text-left px-3 py-2 text-sm transition flex justify-between"
+                              style={{ color: 'var(--text-secondary)' }}
+                              onClick={() => { setSelectedRecipient(u); setSearchResults([]); }}>
                         <span>{u.researcherId}</span>
-                        {u.hasKyberKey && <span className="text-xs text-emerald-400">🔑</span>}
+                        {u.hasKyberKey && <span className="text-xs" style={{ color: 'var(--success)' }}>🔑</span>}
                       </button>
                     ))}
                   </div>
@@ -155,27 +167,26 @@ export default function ShareModal({ onClose, onShared }) {
 
           {/* Permission */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-400">Permission</label>
-            <select
-              value={permission}
-              onChange={e => setPermission(e.target.value)}
-              className="bg-white/5 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-indigo-500"
-            >
+            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Permission</label>
+            <select value={permission} onChange={e => setPermission(e.target.value)}
+                    className="rounded-lg px-3 py-2 text-sm outline-none transition"
+                    style={inputStyle}>
               <option value="view">View Only</option>
               <option value="download">Download</option>
               <option value="full">Full Access</option>
             </select>
           </div>
 
+          {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" className="px-4 py-2 rounded-lg text-sm border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-400 transition" onClick={onClose}>
+            <button type="button" className="px-4 py-2 rounded-lg text-sm transition"
+                    style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-500 transition disabled:opacity-50"
-              disabled={sending}
-            >
+            <button type="submit" className="px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-50"
+                    style={{ background: 'var(--accent)' }}
+                    disabled={sending}>
               {sending ? 'Encrypting & Sharing…' : '🔐 Share with Kyber KEM'}
             </button>
           </div>

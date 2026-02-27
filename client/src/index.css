@@ -1,1 +1,187 @@
 @import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════
+   ByteGuard — Design-Token-Driven Theme
+   ─────────────────────────────────────────────────────
+   All colour values live as CSS custom properties so
+   every component just references `var(--…)`.
+   The active palette is switched by [data-theme] on <html>.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Light Mode Tokens ──────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --bg:              #F6F8FB;
+  --surface:         #FFFFFF;
+  --surface-secondary:#EEF2F7;
+  --surface-elevated: #FFFFFF;
+
+  /* Text hierarchy */
+  --text-primary:    #0F172A;
+  --text-secondary:  #475569;
+  --text-muted:      #64748B;
+
+  /* Primary accent (blue) */
+  --accent:          #2563EB;
+  --accent-hover:    #1D4ED8;
+  --accent-soft:     #DBEAFE;
+  --accent-text:     #2563EB;
+
+  /* Secondary accent (purple) */
+  --accent2:         #7C3AED;
+  --accent2-soft:    #EDE9FE;
+
+  /* Borders & dividers */
+  --border:          #E2E8F0;
+  --border-hover:    #CBD5E1;
+
+  /* Status colours */
+  --success:         #16A34A;
+  --success-soft:    #DCFCE7;
+  --warning:         #D97706;
+  --warning-soft:    #FEF3C7;
+  --error:           #DC2626;
+  --error-soft:      #FEE2E2;
+  --info:            #0284C7;
+  --info-soft:       #E0F2FE;
+
+  /* Misc */
+  --overlay:         rgba(15, 23, 42, 0.45);
+  --spinner-track:   #E2E8F0;
+  --spinner-accent:  #2563EB;
+  --scrollbar-thumb: rgba(37, 99, 235, 0.25);
+  --scrollbar-hover: rgba(37, 99, 235, 0.45);
+  --selection-bg:    rgba(37, 99, 235, 0.20);
+  --selection-text:  #0F172A;
+  --input-bg:        #F1F5F9;
+  --code-bg:         #F1F5F9;
+  --shadow:          rgba(0, 0, 0, 0.06);
+  --shadow-lg:       rgba(0, 0, 0, 0.10);
+}
+
+/* ── Dark Mode Tokens ───────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg:              #0B1220;
+  --surface:         #111827;
+  --surface-secondary:#1a2234;
+  --surface-elevated: #1F2937;
+
+  --text-primary:    #E5E7EB;
+  --text-secondary:  #9CA3AF;
+  --text-muted:      #6B7280;
+
+  --accent:          #3B82F6;
+  --accent-hover:    #60A5FA;
+  --accent-soft:     rgba(30, 58, 138, 0.20);
+  --accent-text:     #60A5FA;
+
+  --accent2:         #8B5CF6;
+  --accent2-soft:    rgba(139, 92, 246, 0.15);
+
+  --border:          #374151;
+  --border-hover:    #4B5563;
+
+  --success:         #22C55E;
+  --success-soft:    rgba(34, 197, 94, 0.12);
+  --warning:         #F59E0B;
+  --warning-soft:    rgba(245, 158, 11, 0.12);
+  --error:           #EF4444;
+  --error-soft:      rgba(239, 68, 68, 0.12);
+  --info:            #38BDF8;
+  --info-soft:       rgba(56, 189, 248, 0.12);
+
+  --overlay:         rgba(0, 0, 0, 0.65);
+  --spinner-track:   #374151;
+  --spinner-accent:  #3B82F6;
+  --scrollbar-thumb: rgba(59, 130, 246, 0.30);
+  --scrollbar-hover: rgba(59, 130, 246, 0.50);
+  --selection-bg:    rgba(59, 130, 246, 0.30);
+  --selection-text:  #FFFFFF;
+  --input-bg:        rgba(255, 255, 255, 0.04);
+  --code-bg:         #0d1526;
+  --shadow:          rgba(0, 0, 0, 0.25);
+  --shadow-lg:       rgba(0, 0, 0, 0.40);
+}
+
+/* ── Base Reset ─────────────────────────────────────── */
+html { background: var(--bg); }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* ── Selection ──────────────────────────────────────── */
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}
+
+/* ── Focus Ring ─────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ── Surface Cards ──────────────────────────────────── */
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.surface-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 12px var(--shadow);
+}
+
+/* ── Spinner ────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.spinner {
+  width: 2.5rem; height: 2.5rem;
+  border: 3px solid var(--spinner-track);
+  border-top-color: var(--spinner-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.spinner-sm {
+  width: 0.75rem; height: 0.75rem;
+  border: 2px solid var(--spinner-track);
+  border-top-color: var(--spinner-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Animations ─────────────────────────────────────── */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-slide-in  { animation: slideIn 0.3s ease; }
+.animate-scale-in  { animation: scaleIn 0.2s ease; }
+.animate-fade-in   { animation: fadeIn  0.2s ease; }
