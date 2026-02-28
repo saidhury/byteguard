@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
+import FileViewer from '../components/modals/FileViewer';
 
 /**
  * AccessControl — dashboard for managing active shares, viewing
@@ -12,7 +14,9 @@ export default function AccessControl() {
   const [received, setReceived] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [timelineFile, setTimelineFile] = useState(null);
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     Promise.all([api.getShared(), api.getReceived(), api.listGroups()])
@@ -102,11 +106,19 @@ export default function AccessControl() {
                       </button>
                     </td>
                     <td className="px-3 py-2 text-right" style={{ borderBottom: '1px solid var(--border)' }}>
-                      <button className="px-3 py-1 text-xs rounded-lg transition"
-                              style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
-                              onClick={() => revoke(s.id)}>
-                        Revoke
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button className="px-3 py-1 text-xs rounded-lg transition"
+                                style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid transparent' }}
+                                onClick={() => setTimelineFile(s)}
+                                title="View audit timeline">
+                          <i className="fas fa-shield-alt mr-1"></i>Timeline
+                        </button>
+                        <button className="px-3 py-1 text-xs rounded-lg transition"
+                                style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
+                                onClick={() => revoke(s.id)}>
+                          Revoke
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -137,6 +149,17 @@ export default function AccessControl() {
           ))}
         </div>
       </section>
+
+      {timelineFile && (
+        <FileViewer
+          fileId={timelineFile.fileId}
+          fileName={timelineFile.fileName}
+          contentType={timelineFile.contentType}
+          timelineOnly
+          ownerId={user?.id}
+          onClose={() => setTimelineFile(null)}
+        />
+      )}
     </div>
   );
 }

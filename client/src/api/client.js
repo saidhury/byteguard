@@ -37,13 +37,19 @@ async function request(endpoint, options = {}) {
   if (options._binary) {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Request failed');
+      const err = new Error(data.error || 'Request failed');
+      err.status = res.status;
+      throw err;
     }
     return res;
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) {
+    const err = new Error(data.error || 'Request failed');
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -116,6 +122,26 @@ const api = {
 
   revokeShare: (id) =>
     request(`/files/shared/${id}`, { method: 'DELETE' }),
+
+  // ── File Timeline & Access Control ─────────────
+  getFileTimeline: (fileId) =>
+    request(`/files/${fileId}/timeline`),
+
+  getFileAccessList: (fileId) =>
+    request(`/files/${fileId}/access`),
+
+  revokeUserAccess: (fileId, targetUserId) =>
+    request(`/files/${fileId}/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    }),
+
+  rotateKeys: (fileId, formData) =>
+    request(`/files/${fileId}/rotate-keys`, {
+      method: 'POST',
+      body: formData,
+      _multipart: true,
+    }),
 
   // ── History ────────────────────────────────────
   getHistory: () => request('/files/history'),

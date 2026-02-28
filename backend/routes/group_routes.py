@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import (
     db, User, Group, GroupMembership, GroupFileAccess,
-    FileMetadata, FileHistory
+    FileMetadata, FileHistory, FileEvent
 )
 
 groups_bp = Blueprint('groups', __name__)
@@ -286,13 +286,25 @@ def share_file_with_group(group_id):
     # Log
     hist = FileHistory(
         user_id=user_id,
+        file_id=file_id,
         name=meta.file_name,
         original_size=meta.original_size,
         encrypted_size=meta.encrypted_size,
         file_type='group-share',
+        content_type=meta.content_type or 'application/octet-stream',
         operation='share',
     )
     db.session.add(hist)
+    db.session.commit()
+
+    # Audit log: FILE_SHARED_GROUP
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='FILE_SHARED_GROUP',
+        metadata_json={'group_id': group_id, 'group_name': group.name},
+    )
+    db.session.add(evt)
     db.session.commit()
 
     return jsonify(gfa.to_dict()), 201

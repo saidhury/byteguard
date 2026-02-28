@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import ShareModal from '../components/modals/ShareModal';
+import FileViewer from '../components/modals/FileViewer';
 
 /**
  * SharedFiles — lists files the current user has shared.
@@ -11,7 +13,9 @@ export default function SharedFiles() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [timelineFile, setTimelineFile] = useState(null);
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const load = async () => {
     setLoading(true);
@@ -102,14 +106,25 @@ export default function SharedFiles() {
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {new Date(item.createdAt || item.timestamp).toLocaleDateString()}
                 </span>
-                <button
-                  className="px-3 py-1 text-xs rounded-lg transition flex items-center gap-1"
-                  style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
-                  onClick={() => revoke(item.id)}
-                >
-                  <i className="fas fa-times"></i>
-                  Revoke
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-3 py-1 text-xs rounded-lg transition flex items-center gap-1"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid transparent' }}
+                    onClick={() => setTimelineFile(item)}
+                    title="View audit timeline & manage access"
+                  >
+                    <i className="fas fa-shield-alt"></i>
+                    Timeline
+                  </button>
+                  <button
+                    className="px-3 py-1 text-xs rounded-lg transition flex items-center gap-1"
+                    style={{ background: 'var(--error-soft)', color: 'var(--error)', border: '1px solid transparent' }}
+                    onClick={() => revoke(item.id)}
+                  >
+                    <i className="fas fa-times"></i>
+                    Revoke
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -117,6 +132,17 @@ export default function SharedFiles() {
       )}
 
       {showShareModal && <ShareModal onClose={() => setShowShareModal(false)} onShared={onShared} />}
+
+      {timelineFile && (
+        <FileViewer
+          fileId={timelineFile.fileId}
+          fileName={timelineFile.fileName}
+          contentType={timelineFile.contentType}
+          timelineOnly
+          ownerId={user?.id}
+          onClose={() => setTimelineFile(null)}
+        />
+      )}
     </div>
   );
 }

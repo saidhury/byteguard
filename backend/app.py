@@ -46,6 +46,40 @@ def create_app(config_class=Config):
                     "ALTER TABLE file_metadata ADD COLUMN owner_kem_ct TEXT"
                 ))
                 conn.commit()
+            # Migrate: create file_events table if missing
+            tables = [r[0] for r in conn.execute(db.text(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ))]
+            if 'file_events' not in tables:
+                conn.execute(db.text("""
+                    CREATE TABLE file_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        file_id INTEGER NOT NULL REFERENCES file_metadata(id),
+                        actor_user_id INTEGER NOT NULL REFERENCES users(id),
+                        event_type VARCHAR(64) NOT NULL,
+                        metadata_json JSON,
+                        timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+                conn.execute(db.text(
+                    "CREATE INDEX IF NOT EXISTS ix_file_events_file_id ON file_events(file_id)"
+                ))
+                conn.commit()
+
+            # Migrate: add file_id + content_type to file_history if missing
+            hist_cols = [r[1] for r in conn.execute(db.text(
+                "PRAGMA table_info(file_history)"
+            ))]
+            if 'file_id' not in hist_cols:
+                conn.execute(db.text(
+                    "ALTER TABLE file_history ADD COLUMN file_id INTEGER REFERENCES file_metadata(id)"
+                ))
+                conn.commit()
+            if 'content_type' not in hist_cols:
+                conn.execute(db.text(
+                    "ALTER TABLE file_history ADD COLUMN content_type VARCHAR(128) DEFAULT 'application/octet-stream'"
+                ))
+                conn.commit()
 
     # Register blueprints
     from routes.auth_routes import auth_bp

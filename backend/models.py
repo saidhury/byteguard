@@ -113,22 +113,27 @@ class FileHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('file_metadata.id'), nullable=True, index=True)
     name = db.Column(db.String(512), nullable=False)
     original_size = db.Column(db.Integer, default=0)
     encrypted_size = db.Column(db.Integer, default=0)
     file_type = db.Column(db.String(128), default='unknown')
+    content_type = db.Column(db.String(128), default='application/octet-stream')
     operation = db.Column(db.String(20), default='encrypt')  # encrypt / decrypt / share
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = db.relationship('User', backref='history')
+    file = db.relationship('FileMetadata', backref='history_entries')
 
     def to_dict(self):
         return {
             'id': self.id,
+            'fileId': self.file_id,
             'name': self.name,
             'originalSize': self.original_size,
             'encryptedSize': self.encrypted_size,
             'type': self.file_type,
+            'contentType': self.content_type,
             'operation': self.operation,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
         }
@@ -211,6 +216,34 @@ class GroupFileAccess(db.Model):
             'sharedBy': self.sharer.researcher_id if self.sharer else None,
             'kemCiphertexts': self.kem_ciphertexts,
             'createdAt': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class FileEvent(db.Model):
+    """Audit log entry for significant file actions."""
+    __tablename__ = 'file_events'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('file_metadata.id'), nullable=False, index=True)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    event_type = db.Column(db.String(64), nullable=False)
+    metadata_json = db.Column(db.JSON, nullable=True)
+
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    file = db.relationship('FileMetadata', backref='events')
+    actor = db.relationship('User')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'fileId': self.file_id,
+            'eventType': self.event_type,
+            'actor': self.actor.researcher_id if self.actor else None,
+            'actorId': self.actor_user_id,
+            'metadata': self.metadata_json,
+            'timestamp': self.timestamp.isoformat() + 'Z' if self.timestamp else None,
         }
 
 

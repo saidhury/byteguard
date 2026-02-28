@@ -6,9 +6,13 @@ Encrypted blobs are stored in the local /storage directory.
 import os
 import uuid
 import hashlib
+import json
 from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, FileMetadata, SharedAccess, FileHistory, User
+from models import (
+    db, FileMetadata, SharedAccess, FileHistory, User,
+    FileEvent, GroupFileAccess, GroupMembership
+)
 
 files_bp = Blueprint('files', __name__)
 
@@ -81,13 +85,24 @@ def upload_file():
     # Also add to history
     hist = FileHistory(
         user_id=user_id,
+        file_id=meta.id,
         name=file_name,
         original_size=original_size,
         encrypted_size=encrypted_size,
         file_type=content_type,
+        content_type=content_type,
         operation='encrypt',
     )
     db.session.add(hist)
+    db.session.commit()
+
+    # Audit log: FILE_UPLOADED
+    evt = FileEvent(
+        file_id=meta.id,
+        actor_user_id=user_id,
+        event_type='FILE_UPLOADED',
+    )
+    db.session.add(evt)
     db.session.commit()
 
     return jsonify(meta.to_dict()), 201
@@ -127,7 +142,6 @@ def download_file(file_id):
         ).first()
         group_access = None
         if not share:
-            from models import GroupFileAccess, GroupMembership
             group_access = db.session.query(GroupFileAccess).join(
                 GroupMembership, GroupFileAccess.group_id == GroupMembership.group_id
             ).filter(
@@ -140,6 +154,16 @@ def download_file(file_id):
     full_path = os.path.join(_storage_dir(), meta.storage_path)
     if not os.path.exists(full_path):
         return jsonify({'error': 'File blob not found on storage'}), 404
+
+    # Audit log: FILE_VIEWED (download)
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='FILE_VIEWED',
+        metadata_json={'action': 'download'},
+    )
+    db.session.add(evt)
+    db.session.commit()
 
     response = send_file(
         full_path,
@@ -179,7 +203,6 @@ def view_file(file_id):
         # Also check group access
         group_access = None
         if not share:
-            from models import GroupFileAccess, GroupMembership
             group_access = db.session.query(GroupFileAccess).join(
                 GroupMembership, GroupFileAccess.group_id == GroupMembership.group_id
             ).filter(
@@ -192,6 +215,16 @@ def view_file(file_id):
     full_path = os.path.join(_storage_dir(), meta.storage_path)
     if not os.path.exists(full_path):
         return jsonify({'error': 'File blob not found on storage'}), 404
+
+    # Audit log: FILE_VIEWED (inline view)
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='FILE_VIEWED',
+        metadata_json={'action': 'view'},
+    )
+    db.session.add(evt)
+    db.session.commit()
 
     response = send_file(
         full_path,
@@ -221,9 +254,25 @@ def file_meta(file_id):
             file_id=file_id, recipient_id=user_id
         ).first()
         if not share:
-            return jsonify({'error': 'Access denied'}), 403
+            # Also check group-based access
+            has_group = False
+            group_accesses = GroupFileAccess.query.filter_by(file_id=file_id).all()
+            for ga in group_accesses:
+                try:
+                    cts = json.loads(ga.kem_ciphertexts)
+                    if str(user_id) in cts:
+                        has_group = True
+                        break
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+            if not has_group:
+                return jsonify({'error': 'Access denied'}), 403
     result = meta.to_dict()
     result['iv'] = meta.iv
+    # Include owner's researcher ID (for key lookup in the rotation flow)
+    owner = User.query.get(meta.owner_id)
+    if owner:
+        result['ownerResearcherId'] = owner.researcher_id
     # Only expose the owner's wrapped AES key to the file owner
     if meta.owner_id == user_id:
         result['ownerKemCt'] = meta.owner_kem_ct
@@ -277,13 +326,25 @@ def share_file():
     # Log
     hist = FileHistory(
         user_id=user_id,
+        file_id=file_id,
         name=meta.file_name,
         original_size=meta.original_size,
         encrypted_size=meta.encrypted_size,
         file_type='share',
+        content_type=meta.content_type or 'application/octet-stream',
         operation='share',
     )
     db.session.add(hist)
+    db.session.commit()
+
+    # Audit log: FILE_SHARED_USER
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='FILE_SHARED_USER',
+        metadata_json={'recipient_id': recipient.id, 'recipient_name': recipient.researcher_id},
+    )
+    db.session.add(evt)
     db.session.commit()
 
     return jsonify(share.to_dict()), 201
@@ -348,8 +409,21 @@ def revoke_share(share_id):
     share = SharedAccess.query.get(share_id)
     if not share or share.sender_id != user_id:
         return jsonify({'error': 'Not found'}), 404
+    file_id = share.file_id
+    revoked_user_id = share.recipient_id
     db.session.delete(share)
     db.session.commit()
+
+    # Audit log: ACCESS_REVOKED
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='ACCESS_REVOKED',
+        metadata_json={'revoked_user_id': revoked_user_id},
+    )
+    db.session.add(evt)
+    db.session.commit()
+
     return jsonify({'message': 'Access revoked'})
 
 
@@ -402,6 +476,327 @@ def clear_history():
     FileHistory.query.filter_by(user_id=user_id).delete()
     db.session.commit()
     return jsonify({'message': 'History cleared'})
+
+
+# ── Key Rotation on Revocation ────────────────────────────
+
+@files_bp.route('/<int:file_id>/rotate-keys', methods=['POST'])
+@jwt_required()
+def rotate_keys(file_id):
+    """
+    Atomic key rotation: replace encrypted blob, IV, owner KEM, and all
+    SharedAccess KEM payloads after revoking a user.  The client performs
+    all crypto and sends the re-encrypted artefacts.
+
+    Multipart form fields:
+      file               – new encrypted blob
+      new_iv             – base64 IV
+      new_owner_kem_ct   – base64 owner KEM payload
+      new_shared_kems    – JSON string { "user_id": "base64_kem_payload", ... }
+      revoked_user_id    – integer
+    """
+    user_id = int(get_jwt_identity())
+    meta = FileMetadata.query.get(file_id)
+    if not meta:
+        return jsonify({'error': 'File not found'}), 404
+    if meta.owner_id != user_id:
+        return jsonify({'error': 'Only the file owner can rotate keys'}), 403
+
+    # ── Parse inputs ──────────────────────────────────────
+    if 'file' not in request.files:
+        return jsonify({'error': 'New encrypted blob is required'}), 400
+
+    revoked_user_id = request.form.get('revoked_user_id')
+    if not revoked_user_id:
+        return jsonify({'error': 'revoked_user_id is required'}), 400
+    revoked_user_id = int(revoked_user_id)
+
+    new_iv             = request.form.get('new_iv', '')
+    new_owner_kem_ct   = request.form.get('new_owner_kem_ct', '')
+    new_shared_kems_raw = request.form.get('new_shared_kems', '{}')
+
+    if not new_iv or not new_owner_kem_ct:
+        return jsonify({'error': 'new_iv and new_owner_kem_ct are required'}), 400
+
+    try:
+        new_shared_kems = json.loads(new_shared_kems_raw)
+    except json.JSONDecodeError:
+        return jsonify({'error': 'new_shared_kems must be valid JSON'}), 400
+
+    # ── Validate the revoked user actually has access ─────
+    has_direct = SharedAccess.query.filter_by(
+        file_id=file_id, recipient_id=revoked_user_id
+    ).first() is not None
+
+    has_group = False
+    group_accesses = GroupFileAccess.query.filter_by(file_id=file_id).all()
+    for ga in group_accesses:
+        try:
+            cts = json.loads(ga.kem_ciphertexts)
+            if str(revoked_user_id) in cts:
+                has_group = True
+                break
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    if not has_direct and not has_group:
+        return jsonify({'error': 'Target user does not have access'}), 404
+
+    # ── Save new blob ─────────────────────────────────────
+    uploaded = request.files['file']
+    file_uuid = uuid.uuid4().hex
+    storage_subdir = os.path.join(_storage_dir(), file_uuid[:2])
+    os.makedirs(storage_subdir, exist_ok=True)
+    storage_filename = f'{file_uuid}.enc'
+    full_path = os.path.join(storage_subdir, storage_filename)
+    uploaded.save(full_path)
+    new_encrypted_size = os.path.getsize(full_path)
+
+    # Compute hash of new blob
+    h = hashlib.sha256()
+    with open(full_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    new_hash = h.hexdigest()
+
+    # ── Delete old blob ───────────────────────────────────
+    old_full_path = os.path.join(_storage_dir(), meta.storage_path)
+    try:
+        if os.path.exists(old_full_path):
+            os.remove(old_full_path)
+    except OSError:
+        pass  # non-critical; old blob just takes space
+
+    # ── Atomic DB update ──────────────────────────────────
+    new_rel_path = os.path.join(file_uuid[:2], storage_filename)
+
+    # Update file metadata
+    meta.storage_path   = new_rel_path
+    meta.encrypted_size = new_encrypted_size
+    meta.iv             = new_iv
+    meta.owner_kem_ct   = new_owner_kem_ct
+    meta.sha256_hash    = new_hash
+
+    # Remove revoked user's direct SharedAccess
+    SharedAccess.query.filter_by(
+        file_id=file_id, recipient_id=revoked_user_id
+    ).delete()
+
+    # Remove revoked user from group KEM mappings
+    for ga in group_accesses:
+        try:
+            cts = json.loads(ga.kem_ciphertexts)
+            if str(revoked_user_id) in cts:
+                del cts[str(revoked_user_id)]
+                ga.kem_ciphertexts = json.dumps(cts)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    # Replace remaining SharedAccess KEM payloads with re-wrapped keys
+    remaining_shares = SharedAccess.query.filter_by(file_id=file_id).all()
+    for share in remaining_shares:
+        uid_str = str(share.recipient_id)
+        if uid_str in new_shared_kems:
+            share.kem_ciphertext = new_shared_kems[uid_str]
+
+    # Update group KEM mappings for remaining users
+    for ga in group_accesses:
+        try:
+            cts = json.loads(ga.kem_ciphertexts)
+            updated = False
+            for uid_str in list(cts.keys()):
+                if uid_str in new_shared_kems:
+                    cts[uid_str] = new_shared_kems[uid_str]
+                    updated = True
+            if updated:
+                ga.kem_ciphertexts = json.dumps(cts)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    # Audit events
+    evt_revoke = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='ACCESS_REVOKED',
+        metadata_json={'revoked_user_id': revoked_user_id},
+    )
+    db.session.add(evt_revoke)
+
+    # Count remaining users
+    remaining_count = len(remaining_shares)
+    for ga in group_accesses:
+        try:
+            remaining_count += len(json.loads(ga.kem_ciphertexts))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    evt_rotate = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='KEYS_ROTATED',
+        metadata_json={'remaining_users_count': remaining_count},
+    )
+    db.session.add(evt_rotate)
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Keys rotated successfully',
+        'newIv': new_iv,
+        'newHash': new_hash,
+        'remainingUsers': remaining_count,
+    })
+
+
+# ── Access Timeline (audit log) ───────────────────────────
+
+@files_bp.route('/<int:file_id>/timeline', methods=['GET'])
+@jwt_required()
+def file_timeline(file_id):
+    """
+    Return the audit event timeline for a file.
+    Only accessible by the owner or a user with current access.
+    """
+    user_id = int(get_jwt_identity())
+    meta = FileMetadata.query.get(file_id)
+    if not meta:
+        return jsonify({'error': 'File not found'}), 404
+
+    # Authorization: owner, direct share, or group access
+    if meta.owner_id != user_id:
+        share = SharedAccess.query.filter_by(
+            file_id=file_id, recipient_id=user_id
+        ).first()
+        group_access = None
+        if not share:
+            group_access = db.session.query(GroupFileAccess).join(
+                GroupMembership, GroupFileAccess.group_id == GroupMembership.group_id
+            ).filter(
+                GroupFileAccess.file_id == file_id,
+                GroupMembership.user_id == user_id
+            ).first()
+        if not share and not group_access:
+            return jsonify({'error': 'Access denied'}), 403
+
+    events = FileEvent.query.filter_by(file_id=file_id).order_by(
+        FileEvent.timestamp.asc()
+    ).all()
+    return jsonify([e.to_dict() for e in events])
+
+
+# ── Instant Access Revocation ─────────────────────────────
+
+@files_bp.route('/<int:file_id>/revoke', methods=['POST'])
+@jwt_required()
+def revoke_user_access(file_id):
+    """
+    Revoke a specific user's access to a file.
+    Only the file owner can revoke.
+    Removes SharedAccess entries and/or group-level KEM mappings.
+    """
+    user_id = int(get_jwt_identity())
+    meta = FileMetadata.query.get(file_id)
+    if not meta:
+        return jsonify({'error': 'File not found'}), 404
+    if meta.owner_id != user_id:
+        return jsonify({'error': 'Only the file owner can revoke access'}), 403
+
+    data = request.get_json(silent=True) or {}
+    target_user_id = data.get('target_user_id')
+    if not target_user_id:
+        return jsonify({'error': 'target_user_id is required'}), 400
+    target_user_id = int(target_user_id)
+
+    if target_user_id == user_id:
+        return jsonify({'error': 'Cannot revoke your own access'}), 400
+
+    revoked_something = False
+
+    # Remove direct SharedAccess entries
+    direct_shares = SharedAccess.query.filter_by(
+        file_id=file_id, recipient_id=target_user_id
+    ).all()
+    for s in direct_shares:
+        db.session.delete(s)
+        revoked_something = True
+
+    # Remove user from group-level KEM ciphertext mappings
+    group_accesses = GroupFileAccess.query.filter_by(file_id=file_id).all()
+    for ga in group_accesses:
+        try:
+            cts = json.loads(ga.kem_ciphertexts)
+            if str(target_user_id) in cts:
+                del cts[str(target_user_id)]
+                ga.kem_ciphertexts = json.dumps(cts)
+                revoked_something = True
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    if not revoked_something:
+        return jsonify({'error': 'User does not have access to this file'}), 404
+
+    db.session.commit()
+
+    # Audit log: ACCESS_REVOKED
+    evt = FileEvent(
+        file_id=file_id,
+        actor_user_id=user_id,
+        event_type='ACCESS_REVOKED',
+        metadata_json={'revoked_user_id': target_user_id},
+    )
+    db.session.add(evt)
+    db.session.commit()
+
+    return jsonify({'message': 'Access revoked successfully'})
+
+
+# ── Access List (who has access to a file) ────────────────
+
+@files_bp.route('/<int:file_id>/access', methods=['GET'])
+@jwt_required()
+def file_access_list(file_id):
+    """
+    Return the list of users who currently have access to a file.
+    Only the file owner can view this.
+    """
+    user_id = int(get_jwt_identity())
+    meta = FileMetadata.query.get(file_id)
+    if not meta:
+        return jsonify({'error': 'File not found'}), 404
+    if meta.owner_id != user_id:
+        return jsonify({'error': 'Only the file owner can view the access list'}), 403
+
+    access_users = {}  # user_id -> { id, researcherId, accessType }
+
+    # Direct shares
+    shares = SharedAccess.query.filter_by(file_id=file_id).all()
+    for s in shares:
+        if s.recipient_id not in access_users:
+            access_users[s.recipient_id] = {
+                'userId': s.recipient_id,
+                'researcherId': s.recipient.researcher_id if s.recipient else str(s.recipient_id),
+                'accessType': 'direct',
+            }
+
+    # Group-based access
+    group_accesses = GroupFileAccess.query.filter_by(file_id=file_id).all()
+    for ga in group_accesses:
+        try:
+            cts = json.loads(ga.kem_ciphertexts)
+            for uid_str in cts:
+                uid = int(uid_str)
+                if uid != user_id and uid not in access_users:
+                    u = User.query.get(uid)
+                    access_users[uid] = {
+                        'userId': uid,
+                        'researcherId': u.researcher_id if u else str(uid),
+                        'accessType': 'group',
+                        'groupName': ga.group.name if ga.group else None,
+                    }
+        except (json.JSONDecodeError, AttributeError, ValueError):
+            pass
+
+    return jsonify(list(access_users.values()))
 
 
 # ── My files (list uploaded encrypted blobs) ──────────────
